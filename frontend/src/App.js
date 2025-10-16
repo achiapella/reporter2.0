@@ -4,7 +4,7 @@ import SourceForm from './components/SourceForm';
 import ProcessorsList from './components/ProcessorsList';
 import ProcessorForm from './components/ProcessorForm';
 import ProcessorsListMain from './components/ProcessorsListMain';
-import { sourcesAPI } from './services/api';
+import { sourcesAPI, processorsAPI } from './services/api';
 import './index.css';
 
 function App() {
@@ -27,10 +27,19 @@ function App() {
 
   // Cargar procesadores cuando se cambie a esa vista
   useEffect(() => {
-    if (currentView === 'processors' && processors.length === 0) {
-      // Los procesadores se cargarán en ProcessorsListMain
+    if (currentView === 'processors') {
+      loadProcessors();
     }
-  }, [currentView, processors.length]);
+  }, [currentView]);
+
+  const loadProcessors = async () => {
+    try {
+      const response = await processorsAPI.getAll();
+      setProcessors(response.data || []);
+    } catch (error) {
+      console.error('Error cargando procesadores:', error);
+    }
+  };
 
   const loadSources = async () => {
     try {
@@ -69,12 +78,24 @@ function App() {
 
   const handleProcessorSubmit = async (processorData) => {
     try {
-      // La lógica del submit está en ProcessorForm
-      // Este callback puede ser usado para acciones adicionales
+      setError(null);
+      if (editingProcessor) {
+        const response = await processorsAPI.update(editingProcessor.id, processorData);
+        setProcessors(prev => prev.map(p => 
+          p.id === editingProcessor.id ? response.data : p
+        ));
+        setEditingProcessor(null);
+        setMessage('Procesador actualizado exitosamente');
+      } else {
+        const response = await processorsAPI.create(processorData);
+        setProcessors(prev => [response.data, ...prev]);
+        setMessage('Procesador creado exitosamente');
+      }
       setShowProcessorForm(false);
-      setEditingProcessor(null);
+      setTimeout(() => setMessage(null), 3000);
     } catch (error) {
       console.error('Error al guardar processor:', error);
+      setError(error.message || 'Error al guardar procesador');
     }
   };
 
@@ -127,12 +148,16 @@ function App() {
             <p className="text-gray-600">Cargando sources...</p>
           </div>
         ) : sources.length === 0 ? (
-          <div className="text-center py-16">
-            <svg className="w-20 h-20 mx-auto text-gray-300 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No hay sources</h3>
-            <p className="text-gray-500 mb-6">Crea tu primer source para comenzar</p>
+          <div className="empty-state fade-in">
+            <div className="empty-state-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h3 className="empty-state-title">No hay sources</h3>
+            <p className="empty-state-description">
+              Crea tu primer source para comenzar a gestionar tus fuentes de datos
+            </p>
             <button 
               className="btn btn-primary"
               onClick={() => setShowSourceForm(true)}
@@ -144,31 +169,38 @@ function App() {
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 fade-in">
             {sources.map((source) => (
               <div 
                 key={source.id} 
-                className={`bg-white rounded-lg border-2 cursor-pointer transition-all duration-200 hover:shadow-md ${
+                className={`card cursor-pointer ${
                   selectedSource && selectedSource.id === source.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200'
+                    ? 'card-selected'
+                    : ''
                 }`}
                 onClick={() => setSelectedSource(source)}
               >
                 <div className="p-6">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <div className={`source-type ${source.type} mb-2`}>
-                        {source.type === 'file' ? '📄 Archivo' : '🌐 URL'}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`source-type ${source.type} inline-block`}>
+                          {source.type === 'file' ? '📄 Archivo' : '🌐 URL'}
+                        </div>
+                        {source.last_tested_at && (
+                          <span className="badge badge-success">
+                            ✓ Verificado
+                          </span>
+                        )}
                       </div>
-                      <h3 className="text-lg font-semibold text-gray-800">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">
                         {source.name}
                       </h3>
                       {source.description && (
-                        <p className="text-gray-600 text-sm mt-1">{source.description}</p>
+                        <p className="text-gray-600 text-sm">{source.description}</p>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 ml-4">
                       <button 
                         className="btn btn-secondary btn-small"
                         onClick={(e) => {
@@ -279,33 +311,56 @@ function App() {
     <div className="min-h-screen bg-gray-50">
       {/* Mensajes de error y éxito */}
       {error && (
-        <div className="alert alert-error">
-          <p>{error}</p>
-          <button onClick={() => setError(null)} className="ml-auto">×</button>
+        <div className="fixed top-4 right-4 z-50 fade-in">
+          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 max-w-md">
+            <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="flex-1">{error}</p>
+            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
       
       {message && (
-        <div className="alert alert-success">
-          <p>{message}</p>
-          <button onClick={() => setMessage(null)} className="ml-auto">×</button>
+        <div className="fixed top-4 right-4 z-50 fade-in">
+          <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 max-w-md">
+            <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="flex-1">{message}</p>
+            <button onClick={() => setMessage(null)} className="text-green-500 hover:text-green-700">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
       {/* Header con navegación */}
-      <header className="bg-white border-b border-gray-200">
+      <header className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-gray-900">Reporter 2.0</h1>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                Reporter 2.0
+              </h1>
+            </div>
             
             {/* Navegación entre vistas */}
-            <nav className="flex space-x-4">
+            <nav className="flex space-x-2">
               <button
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  currentView === 'sources'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
+                className={`nav-tab ${currentView === 'sources' ? 'active' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
                 onClick={() => setCurrentView('sources')}
               >
                 <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -314,11 +369,7 @@ function App() {
                 Sources
               </button>
               <button
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  currentView === 'processors'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
+                className={`nav-tab ${currentView === 'processors' ? 'active' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}
                 onClick={() => setCurrentView('processors')}
               >
                 <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">

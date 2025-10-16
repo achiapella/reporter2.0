@@ -9,20 +9,8 @@ const ProcessorsListMain = ({ processors = [], setProcessors, selectedProcessor,
   // Asegurar que processors sea siempre un array
   const safeProcessors = Array.isArray(processors) ? processors : [];
 
-  const loadProcessors = async () => {
-    setLoading(true);
-    try {
-      const data = await processorsAPI.getAll();
-      setProcessors(data);
-    } catch (error) {
-      console.error('Error cargando procesadores:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadProcessors();
+    // La carga de procesadores se maneja desde App.js
   }, []);
 
   const handleDelete = async (id) => {
@@ -79,15 +67,15 @@ const ProcessorsListMain = ({ processors = [], setProcessors, selectedProcessor,
       {/* Header con búsqueda y filtros */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <div className="flex-1 max-w-md">
-          <div className="relative">
+          <div className="search-input">
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar procesadores..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="form-input"
             />
-            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="search-icon w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
@@ -97,7 +85,7 @@ const ProcessorsListMain = ({ processors = [], setProcessors, selectedProcessor,
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="form-input form-select"
           >
             <option value="all">Todos los tipos</option>
             <option value="file">Archivos</option>
@@ -119,16 +107,16 @@ const ProcessorsListMain = ({ processors = [], setProcessors, selectedProcessor,
 
       {/* Lista de procesadores */}
       {filteredProcessors.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="mb-6">
-            <svg className="w-20 h-20 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="empty-state fade-in">
+          <div className="empty-state-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-gray-700 mb-2">
+          <h3 className="empty-state-title">
             {safeProcessors.length === 0 ? 'No hay procesadores' : 'No se encontraron procesadores'}
           </h3>
-          <p className="text-gray-500 mb-6">
+          <p className="empty-state-description">
             {safeProcessors.length === 0 
               ? 'Crea tu primer procesador para comenzar a procesar datos'
               : 'Intenta cambiar los filtros de búsqueda'
@@ -147,14 +135,14 @@ const ProcessorsListMain = ({ processors = [], setProcessors, selectedProcessor,
           )}
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-4 fade-in">
           {filteredProcessors.map((processor) => (
             <div 
               key={processor.id} 
-              className={`bg-white rounded-lg border-2 cursor-pointer transition-all duration-200 hover:shadow-md ${
+              className={`card cursor-pointer ${
                 selectedProcessor && selectedProcessor.id === processor.id
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200'
+                  ? 'card-selected'
+                  : ''
               }`}
               onClick={() => setSelectedProcessor(processor)}
             >
@@ -168,6 +156,11 @@ const ProcessorsListMain = ({ processors = [], setProcessors, selectedProcessor,
                       <span className="text-xl" title={`Salida: ${processor.output_format}`}>
                         {getOutputFormatIcon(processor.output_format)}
                       </span>
+                      {processor.last_executed_at && (
+                        <span className="badge badge-success">
+                          ✓ Ejecutado
+                        </span>
+                      )}
                     </div>
                     
                     <h3 className="text-xl font-semibold text-gray-800 mb-2">
