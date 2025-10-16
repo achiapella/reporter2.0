@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { sourcesAPI } from '../services/api';
 
-const SourcesList = ({ source, onEdit, onDelete }) => {
+const SourcesList = ({ source, onEdit, onDelete, onClose }) => {
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
   const [fileContent, setFileContent] = useState(null);
@@ -383,6 +383,20 @@ const SourcesList = ({ source, onEdit, onDelete }) => {
 
   return (
     <div className="space-y-8">
+      {/* Botón de cerrar */}
+      <div className="flex justify-end">
+        <button 
+          className="btn btn-secondary btn-small"
+          onClick={onClose}
+          title="Cerrar detalles"
+        >
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Cerrar
+        </button>
+      </div>
+
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6">
         <div className="flex-1">
           <div className={`source-type ${source.type} mb-4`}>

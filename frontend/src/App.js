@@ -189,6 +189,7 @@ function App() {
                 source={selectedSource}
                 onEdit={handleEditSource}
                 onDelete={handleDeleteSource}
+                onClose={() => setSelectedSource(null)}
               />
             ) : (
               <div className="text-center py-24 text-gray-500">
