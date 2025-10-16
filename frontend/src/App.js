@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import SourcesList from './components/SourcesList';
 import SourceForm from './components/SourceForm';
-import ProcessorsList from './components/ProcessorsList';
-import ProcessorForm from './components/ProcessorForm';
-import ProcessorsListMain from './components/ProcessorsListMain';
+import ProcessorsListSimple from './components/ProcessorsListSimple';
+import ProcessorFormSimple from './components/ProcessorFormSimple';
 import { sourcesAPI, processorsAPI } from './services/api';
 import './index.css';
 
@@ -252,22 +251,9 @@ function App() {
           <h2 className="text-2xl font-bold text-gray-800">Procesadores</h2>
         </div>
         
-        <ProcessorsListMain
-          processors={processors}
-          setProcessors={setProcessors}
-          selectedProcessor={selectedProcessor}
-          setSelectedProcessor={setSelectedProcessor}
-          setEditingProcessor={setEditingProcessor}
-          setShowProcessorForm={setShowProcessorForm}
-        />
-      </div>
-      
-      <div>
-        <ProcessorsList
-          processor={selectedProcessor}
+        <ProcessorsListSimple
           onEdit={handleEditProcessor}
-          onDelete={() => {}}
-          onClose={() => setSelectedProcessor(null)}
+          onNew={() => setShowProcessorForm(true)}
         />
       </div>
     </div>
@@ -294,7 +280,7 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-4xl mx-auto">
-          <ProcessorForm
+          <ProcessorFormSimple
             processor={editingProcessor}
             onSubmit={handleProcessorSubmit}
             onCancel={() => {

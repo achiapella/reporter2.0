@@ -1,43 +1,47 @@
 const express = require('express');
 const router = express.Router();
-const { 
-  getAllProcessors, 
-  getProcessorById, 
-  createProcessor, 
-  updateProcessor, 
-  deleteProcessor,
-  getDb
-} = require('../database/db');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
-// Validar tipos de entrada permitidos
-const VALID_INPUT_TYPES = ['file', 'url', 'any'];
+// Ruta de la base de datos
+const DB_PATH = path.join(__dirname, '..', 'database.db');
 
-// Validar formato de salida permitidos
-const VALID_OUTPUT_FORMATS = ['json', 'text', 'csv', 'xml'];
+// Crear conexión a la base de datos
+let db = new sqlite3.Database(DB_PATH);
 
-// Validar estructura de procesador
-function validateProcessor(processorData) {
-  const { name, python_code, input_type } = processorData;
-  
-  if (!name || !name.trim()) {
-    return 'El nombre es requerido';
-  }
-  
-  if (!python_code || !python_code.trim()) {
-    return 'El código Python es requerido';
-  }
-  
-  if (!input_type || !VALID_INPUT_TYPES.includes(input_type)) {
-    return `Tipo de entrada inválido. Debe ser uno de: ${VALID_INPUT_TYPES.join(', ')}`;
-  }
-  
-  return null;
+// Inicializar base de datos con las nuevas columnas
+async function initDatabase() {
+  return new Promise((resolve, reject) => {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS processors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        input_source TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
 }
 
 // GET /api/processors - Obtener todos los procesadores
 router.get('/', async (req, res) => {
   try {
-    const processors = await getAllProcessors();
+    await initDatabase();
+    
+    const query = 'SELECT * FROM processors ORDER BY created_at DESC';
+    
+    const processors = await new Promise((resolve, reject) => {
+      db.all(query, [], (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows || []);
+      });
+    });
+
     res.json({
       success: true,
       data: processors,
@@ -63,8 +67,17 @@ router.get('/:id', async (req, res) => {
         error: 'ID de procesador inválido'
       });
     }
+
+    await initDatabase();
     
-    const processor = await getProcessorById(parseInt(id));
+    const query = 'SELECT * FROM processors WHERE id = ?';
+    
+    const processor = await new Promise((resolve, reject) => {
+      db.get(query, [parseInt(id)], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
     
     if (!processor) {
       return res.status(404).json({
@@ -89,30 +102,41 @@ router.get('/:id', async (req, res) => {
 // POST /api/processors - Crear nuevo procesador
 router.post('/', async (req, res) => {
   try {
-    const processorData = req.body;
+    const { name, description, input_source } = req.body;
     
-    // Validar datos
-    const validationError = validateProcessor(processorData);
-    if (validationError) {
+    // Validación
+    if (!name || !description || !input_source) {
       return res.status(400).json({
         success: false,
-        error: validationError
+        error: 'Nombre, descripción y fuente de entrada son requeridos'
       });
     }
-    
-    // Validar formato de salida
-    if (processorData.output_format && !VALID_OUTPUT_FORMATS.includes(processorData.output_format)) {
-      return res.status(400).json({
-        success: false,
-        error: `Formato de salida inválido. Debe ser uno de: ${VALID_OUTPUT_FORMATS.join(', ')}`
+
+    // Crear tabla si no existe
+    await initDatabase();
+
+    const insertQuery = `
+      INSERT INTO processors (name, description, input_source, created_at, updated_at)
+      VALUES (?, ?, ?, datetime('now'), datetime('now'))
+    `;
+
+    const result = await new Promise((resolve, reject) => {
+      db.run(insertQuery, [name, description, input_source], function(err) {
+        if (err) reject(err);
+        else resolve({ id: this.lastID });
       });
-    }
-    
-    const processor = await createProcessor(processorData);
-    
+    });
+
     res.status(201).json({
       success: true,
-      data: processor,
+      data: {
+        id: result.id,
+        name,
+        description,
+        input_source,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
       message: 'Procesador creado exitosamente'
     });
   } catch (error) {
@@ -128,7 +152,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const processorData = req.body;
+    const { name, description, input_source } = req.body;
     
     if (!id || isNaN(parseInt(id))) {
       return res.status(400).json({
@@ -137,28 +161,45 @@ router.put('/:id', async (req, res) => {
       });
     }
     
-    // Validar datos
-    const validationError = validateProcessor(processorData);
-    if (validationError) {
+    // Validación
+    if (!name || !description || !input_source) {
       return res.status(400).json({
         success: false,
-        error: validationError
+        error: 'Nombre, descripción y fuente de entrada son requeridos'
       });
     }
+
+    await initDatabase();
     
-    // Validar formato de salida
-    if (processorData.output_format && !VALID_OUTPUT_FORMATS.includes(processorData.output_format)) {
-      return res.status(400).json({
+    const updateQuery = `
+      UPDATE processors 
+      SET name = ?, description = ?, input_source = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `;
+    
+    const result = await new Promise((resolve, reject) => {
+      db.run(updateQuery, [name, description, input_source, parseInt(id)], function(err) {
+        if (err) reject(err);
+        else resolve({ changes: this.changes });
+      });
+    });
+    
+    if (result.changes === 0) {
+      return res.status(404).json({
         success: false,
-        error: `Formato de salida inválido. Debe ser uno de: ${VALID_OUTPUT_FORMATS.join(', ')}`
+        error: 'Procesador no encontrado'
       });
     }
-    
-    const processor = await updateProcessor(parseInt(id), processorData);
     
     res.json({
       success: true,
-      data: processor,
+      data: {
+        id: parseInt(id),
+        name,
+        description,
+        input_source,
+        updated_at: new Date().toISOString()
+      },
       message: 'Procesador actualizado exitosamente'
     });
   } catch (error) {
@@ -181,56 +222,31 @@ router.delete('/:id', async (req, res) => {
         error: 'ID de procesador inválido'
       });
     }
+
+    await initDatabase();
     
-    const result = await deleteProcessor(parseInt(id));
+    const deleteQuery = 'DELETE FROM processors WHERE id = ?';
+    
+    const result = await new Promise((resolve, reject) => {
+      db.run(deleteQuery, [parseInt(id)], function(err) {
+        if (err) reject(err);
+        else resolve({ changes: this.changes });
+      });
+    });
+    
+    if (result.changes === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Procesador no encontrado'
+      });
+    }
     
     res.json({
       success: true,
-      message: result.message
+      message: 'Procesador eliminado correctamente'
     });
   } catch (error) {
     console.error('Error al eliminar procesador:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// POST /api/processors/:id/execute - Ejecutar procesador con un source
-router.post('/:id/execute', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { sourceId } = req.body;
-    
-    if (!id || isNaN(parseInt(id))) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID de procesador inválido'
-      });
-    }
-    
-    if (!sourceId || isNaN(parseInt(sourceId))) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID de source inválido'
-      });
-    }
-    
-    // TODO: Implementar ejecución de código Python
-    // Por ahora retornamos un placeholder
-    
-    res.json({
-      success: true,
-      result: {
-        status: 'Executed',
-        message: 'Funcionalidad de ejecución en desarrollo',
-        timestamp: new Date().toISOString()
-      }
-    });
-    
-  } catch (error) {
-    console.error('Error al ejecutar procesador:', error);
     res.status(500).json({
       success: false,
       error: error.message
