@@ -17,6 +17,7 @@ function initDatabase() {
       
       // Crear tabla de sources si no existe
       createSourcesTable()
+        .then(() => createProcessorsTable())
         .then(() => resolve())
         .catch(reject);
     });
@@ -162,6 +163,40 @@ function migrateSourcesTable() {
           });
         });
       });
+    });
+  });
+}
+
+// Crear tabla de procesadores
+function createProcessorsTable() {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      CREATE TABLE IF NOT EXISTS processors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        python_code TEXT NOT NULL,
+        input_type TEXT NOT NULL CHECK(input_type IN ('file', 'url', 'any')),
+        output_format TEXT DEFAULT 'json',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_by TEXT DEFAULT 'anonymous',
+        is_active BOOLEAN DEFAULT 1,
+        last_executed_at DATETIME,
+        last_execution_status TEXT,
+        last_execution_result TEXT,
+        last_execution_error TEXT
+      )
+    `;
+    
+    db.run(sql, (err) => {
+      if (err) {
+        console.error('Error al crear tabla processors:', err);
+        reject(err);
+      } else {
+        console.log('✅ Tabla processors inicializada');
+        resolve();
+      }
     });
   });
 }
@@ -318,6 +353,145 @@ function closeDatabase() {
   }
 }
 
+// ==================== FUNCIONES PARA PROCESADORES ====================
+
+// Obtener todos los procesadores
+function getAllProcessors() {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT id, name, description, python_code, input_type, output_format, 
+             created_at, updated_at, created_by, is_active,
+             last_executed_at, last_execution_status, last_execution_result, last_execution_error
+      FROM processors 
+      WHERE is_active = 1 
+      ORDER BY updated_at DESC
+    `;
+    
+    db.all(sql, (err, rows) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      
+      const processors = rows.map(row => ({
+        ...row,
+        is_active: Boolean(row.is_active)
+      }));
+      
+      resolve(processors);
+    });
+  });
+}
+
+// Obtener procesador por ID
+function getProcessorById(id) {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT id, name, description, python_code, input_type, output_format,
+             created_at, updated_at, created_by, is_active,
+             last_executed_at, last_execution_status, last_execution_result, last_execution_error
+      FROM processors 
+      WHERE id = ? AND is_active = 1
+    `;
+    
+    db.get(sql, [id], (err, row) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      
+      if (row) {
+        const processor = {
+          ...row,
+          is_active: Boolean(row.is_active)
+        };
+        resolve(processor);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+// Crear nuevo procesador
+function createProcessor(processorData) {
+  return new Promise((resolve, reject) => {
+    const { name, description, python_code, input_type, output_format, created_by } = processorData;
+    
+    const sql = `
+      INSERT INTO processors (name, description, python_code, input_type, output_format, created_by, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `;
+    
+    db.run(sql, [name, description, python_code, input_type, output_format || 'json', created_by || 'anonymous'], function(err) {
+      if (err) {
+        reject(err);
+        return;
+      }
+      
+      // Obtener el procesador creado
+      getProcessorById(this.lastID)
+        .then(processor => resolve(processor))
+        .catch(reject);
+    });
+  });
+}
+
+// Actualizar procesador
+function updateProcessor(id, processorData) {
+  return new Promise((resolve, reject) => {
+    const { name, description, python_code, input_type, output_format } = processorData;
+    
+    const sql = `
+      UPDATE processors 
+      SET name = ?, description = ?, python_code = ?, input_type = ?, output_format = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND is_active = 1
+    `;
+    
+    db.run(sql, [name, description, python_code, input_type, output_format || 'json', id], function(err) {
+      if (err) {
+        reject(err);
+        return;
+      }
+      
+      if (this.changes === 0) {
+        reject(new Error('Procesador no encontrado o ya eliminado'));
+        return;
+      }
+      
+      // Obtener el procesador actualizado
+      getProcessorById(id)
+        .then(processor => resolve(processor))
+        .catch(reject);
+    });
+  });
+}
+
+// Eliminar procesador (soft delete)
+function deleteProcessor(id) {
+  return new Promise((resolve, reject) => {
+    const sql = `
+      UPDATE processors 
+      SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND is_active = 1
+    `;
+    
+    db.run(sql, [id], function(err) {
+      if (err) {
+        reject(err);
+        return;
+      }
+      
+      if (this.changes === 0) {
+        reject(new Error('Procesador no encontrado o ya eliminado'));
+        return;
+      }
+      
+      resolve({ success: true, message: 'Procesador eliminado correctamente' });
+    });
+  });
+}
+
 module.exports = {
   initDatabase,
   getAllSources,
@@ -325,6 +499,11 @@ module.exports = {
   createSource,
   updateSource,
   deleteSource,
+  getAllProcessors,
+  getProcessorById,
+  createProcessor,
+  updateProcessor,
+  deleteProcessor,
   closeDatabase,
   getDb: () => db
 };

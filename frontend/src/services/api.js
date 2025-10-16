@@ -160,4 +160,66 @@ export const uploadAPI = {
   }
 };
 
+export const processorsAPI = {
+  // Obtener todos los procesadores
+  getAll: async () => {
+    try {
+      const response = await api.get('/processors');
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Error al obtener procesadores');
+    }
+  },
+
+  // Obtener procesador por ID
+  getById: async (id) => {
+    try {
+      const response = await api.get(`/processors/${id}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Error al obtener procesador');
+    }
+  },
+
+  // Crear nuevo procesador
+  create: async (processorData) => {
+    try {
+      const response = await api.post('/processors', processorData);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Error al crear procesador');
+    }
+  },
+
+  // Actualizar procesador
+  update: async (id, processorData) => {
+    try {
+      const response = await api.put(`/processors/${id}`, processorData);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Error al actualizar procesador');
+    }
+  },
+
+  // Eliminar procesador
+  delete: async (id) => {
+    try {
+      const response = await api.delete(`/processors/${id}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Error al eliminar procesador');
+    }
+  },
+
+  // Ejecutar procesador con un source
+  execute: async (id, sourceId) => {
+    try {
+      const response = await api.post(`/processors/${id}/execute`, { sourceId });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Error al ejecutar procesador');
+    }
+  }
+};
+
 export default api;

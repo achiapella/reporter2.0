@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const sourcesRoutes = require('./routes/sources');
 const uploadRoutes = require('./routes/upload');
+const processorsRoutes = require('./routes/processors');
 const { initDatabase } = require('./database/db');
 
 const app = express();
@@ -21,6 +22,7 @@ if (process.env.NODE_ENV === 'production') {
 // Rutas de la API
 app.use('/api/sources', sourcesRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/processors', processorsRoutes);
 
 // Servir archivos subidos de forma estática
 app.use('/api/files', express.static(path.join(__dirname, 'uploads')));
