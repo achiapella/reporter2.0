@@ -1,0 +1,37 @@
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Base de datos
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs
+*.log
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build
+build/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Uploads
+uploads/
